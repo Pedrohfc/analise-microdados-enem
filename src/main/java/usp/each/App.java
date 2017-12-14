@@ -4,8 +4,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.swing.JFrame;
 
@@ -19,9 +21,12 @@ import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.DefaultCategoryDataset;
 
+import usp.each.model.ENEM;
+
 public class App
 {
     public static Map<String, String> valuesMap;
+    public static Set<String> columns;
     
     public static void main(String[] args) throws Exception
     {
@@ -34,16 +39,18 @@ public class App
         // ler o arquivo csv
         String filePath = "/home/pedro/Documents/Microdados_enem_2016/DADOS/microdados_enem_2016.csv";
         //String filePath = "resources/teste.csv";
-        Dataset<Row> enem = spark.read()
-                                .option("header", true)
-                                .option("delimiter", ";")
-                                .option("inferSchema", "true")
-                                .csv(filePath);
+        ENEM enem1 = new ENEM(columns, filePath, 2016);
+        ENEM enem2 = new ENEM(columns, filePath, 2016);
         
-        enem.printSchema(); // imprime o esquema do dataset
+        Dataset<Row> teste = enem1.getDataset();
+        teste.printSchema();
+        
+        enem2.getDataset().printSchema();
+        //enem.printSchema(); // imprime o esquema do dataset
+        
         
         // query sobre a media de notas por renda familiar (Q006)
-        List<Row> result = enem.groupBy("Q006")
+        List<Row> result = teste.groupBy("Q006")
                                 .avg("NU_NOTA_REDACAO", "NU_NOTA_MT", "NU_NOTA_LC", "NU_NOTA_CH", "NU_NOTA_CN")
                                 .orderBy("Q006")
                                 .collectAsList();
@@ -80,24 +87,40 @@ public class App
         ChartPanel panel = new ChartPanel(chart);
         
         JFrame frame = new JFrame("Analise ENEM");
+        
         frame.add(panel);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
-        frame.setVisible(true);
         
-        spark.stop();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            spark.stop();
+        }));
+        
+        frame.setVisible(true);
     }
     
     public static void init() throws Exception
     {
         valuesMap = new HashMap<>();
         File configFile = new File("resources/valuesMap.txt");
-        BufferedReader in = new BufferedReader(new FileReader(configFile));
-        while (in.ready())
+        BufferedReader valuesIn = new BufferedReader(new FileReader(configFile));
+        while (valuesIn.ready())
         {
-            String[] line = in.readLine().split(";");
+            String[] line = valuesIn.readLine().split(";");
             valuesMap.put(line[0], line[1]);
         }
-        in.close();
+        valuesIn.close();
+        
+        
+        File columnsConfig = new File("resources/columns.txt");
+        BufferedReader columnsIn = new BufferedReader(new FileReader(columnsConfig));
+        columns = new HashSet<>();
+        
+        while (columnsIn.ready())
+        {
+            columns.add(columnsIn.readLine());
+        }
+        
+        columnsIn.close();
     }
 }
